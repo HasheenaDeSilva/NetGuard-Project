@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+pandas
+numpy
+joblib
+shap
+lightgbm
+streamlit
+plotly
+requests
+sqlalchemy
+pydantic
+matplotlib

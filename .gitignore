@@ -1,0 +1,17 @@
+.DS_Store
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+.history/
+.vscode/
+venv/
+.env
+shap-env/
+data/
+artifacts/
+ml_pipeline/artifacts/
+reports/
+*.joblib
+*.pkl
+*.db
