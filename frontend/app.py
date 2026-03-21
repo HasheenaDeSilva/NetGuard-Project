@@ -227,11 +227,6 @@ st.markdown(
             font-weight: 600 !important;
         }
 
-        .stDataFrame, .stTable {
-            border-radius: 14px;
-            overflow: hidden;
-        }
-
         [data-testid="stSidebar"] .stSuccess,
         [data-testid="stSidebar"] .stError {
             margin-top: 1rem;
@@ -376,26 +371,18 @@ def build_payload(
 
 def clean_dataframe_for_streamlit(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Make a dataframe safer for Streamlit rendering in local and deployed apps.
+    Make a dataframe safer for Streamlit rendering in local apps
+    and for general dataframe cleaning.
 
-    Why this is needed:
-    Some deployments throw Arrow/frontend errors like:
-    'Unrecognized type: LargeUtf8'
-
-    This helper converts columns into basic Python-backed object types.
+    This is still useful for regular history/report tables.
     """
     if df is None or df.empty:
         return df
 
     out = df.copy()
-
-    # Force column names to plain strings.
     out.columns = [str(col) for col in out.columns]
-
-    # Replace pandas NaN / missing values with None.
     out = out.where(pd.notnull(out), None)
 
-    # Convert each cell to a plain Python-friendly type.
     for col in out.columns:
         out[col] = out[col].map(
             lambda x: x if isinstance(x, (int, float, str, bool, type(None), pd.Timestamp)) else str(x)
@@ -407,7 +394,7 @@ def clean_dataframe_for_streamlit(df: pd.DataFrame) -> pd.DataFrame:
 
 def dataframe_from_top_features(top_features: List[Dict[str, Any]]) -> pd.DataFrame:
     """
-    Convert backend SHAP top-feature output into a readable table.
+    Convert backend SHAP top-feature output into a readable dataframe.
     """
     rows = []
     for item in top_features or []:
@@ -430,7 +417,7 @@ def dataframe_from_top_features(top_features: List[Dict[str, Any]]) -> pd.DataFr
 
 def dataframe_from_probabilities(probabilities: Dict[str, float]) -> pd.DataFrame:
     """
-    Convert backend class probabilities into a readable table.
+    Convert backend class probabilities into a readable dataframe.
     """
     label_map = {"0": "LOW", "1": "MEDIUM", "2": "HIGH"}
     rows = []
@@ -867,14 +854,22 @@ elif page == "Analyze Incident":
         with exp_left:
             st.markdown("#### Top Contributing Features")
 
-            # Convert backend explanation output into a display table.
+            # Convert backend explanation output into a display dataframe.
             top_df = dataframe_from_top_features(result.get("top_features", []))
 
             st.markdown('<div class="ng-card">', unsafe_allow_html=True)
 
-            # Use st.table instead of st.dataframe here to avoid deploy Arrow/LargeUtf8 issues.
+            # Render as markdown text instead of st.table/st.dataframe
+            # to avoid deployment Arrow LargeUtf8 frontend errors.
             if not top_df.empty:
-                st.table(clean_dataframe_for_streamlit(top_df))
+                st.markdown("**Top Features**")
+                for _, row in top_df.iterrows():
+                    feature = str(row["Feature"])
+                    influence = safe_float(row["Influence"])
+                    abs_influence = safe_float(row["Abs Influence"])
+                    st.markdown(
+                        f"- **{feature}** — Influence: `{influence:.5f}`, Abs Influence: `{abs_influence:.5f}`"
+                    )
             else:
                 st.info("No top features returned by the backend.")
 
@@ -883,21 +878,27 @@ elif page == "Analyze Incident":
         with exp_right:
             st.markdown("#### Class Probability Breakdown")
 
-            # Convert backend class probabilities into table format.
+            # Convert backend class probabilities into display dataframe.
             prob_df = dataframe_from_probabilities(result.get("class_probabilities", {}))
 
             st.markdown('<div class="ng-card">', unsafe_allow_html=True)
 
             if not prob_df.empty:
-                # Create a clean chart dataframe for the probability bar chart.
+                # Create numeric copy for charting.
                 chart_df = prob_df.copy()
-                chart_df["Probability"] = pd.to_numeric(chart_df["Probability"], errors="coerce").fillna(0.0)
+                chart_df["Probability"] = pd.to_numeric(
+                    chart_df["Probability"], errors="coerce"
+                ).fillna(0.0)
 
-                # Show probability chart.
+                # Show class probability chart.
                 st.bar_chart(chart_df.set_index("Class"), height=300)
 
-                # Use st.table to avoid deploy dataframe type issues.
-                st.table(clean_dataframe_for_streamlit(prob_df))
+                # Render probability values as markdown instead of dataframe/table.
+                st.markdown("**Probability Values**")
+                for _, row in chart_df.iterrows():
+                    label = str(row["Class"])
+                    prob = safe_float(row["Probability"])
+                    st.markdown(f"- **{label}**: {prob:.4f} ({prob * 100:.1f}%)")
             else:
                 st.info("No class probabilities available.")
 
@@ -1055,11 +1056,17 @@ elif page == "Incident History":
             if detail.get("isolation_summary"):
                 render_card("Isolation Summary", str(detail.get("isolation_summary")))
 
-            # Stored feature explanation table.
+            # Stored feature explanation shown safely as markdown list.
             exp_df = dataframe_from_top_features(detail.get("explanations", []))
             if not exp_df.empty:
                 st.markdown("#### Stored Top Features")
-                st.table(clean_dataframe_for_streamlit(exp_df))
+                for _, row in exp_df.iterrows():
+                    feature = str(row["Feature"])
+                    influence = safe_float(row["Influence"])
+                    abs_influence = safe_float(row["Abs Influence"])
+                    st.markdown(
+                        f"- **{feature}** — Influence: `{influence:.5f}`, Abs Influence: `{abs_influence:.5f}`"
+                    )
         else:
             st.warning(f"Could not load detail for ID {selected_id}.")
 
