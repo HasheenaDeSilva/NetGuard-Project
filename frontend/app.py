@@ -676,7 +676,7 @@ elif page == "Analyze Incident":
         st.session_state["last_payload"] = payload
 
         # Button to trigger the model assessment.
-        run = st.button("Run NetGuard Assessment", type="primary", width="stretch")
+        run = st.button("Run NetGuard Assessment", type="primary")
 
     with right:
         st.subheader("Input Summary")
