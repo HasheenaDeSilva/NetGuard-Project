@@ -601,19 +601,16 @@ Numeric values assigned to selected log signals to represent the intensity or vo
 The model's predicted operational risk level for the incident: **LOW**, **MEDIUM**, or **HIGH**.
 
 **Severity Class**  
-The numerical class predicted by the machine learning model:  
-0 = Low Risk, 1 = Medium Risk, 2 = High Risk.
+The numerical class predicted by the machine learning model: 0 = Low Risk, 1 = Medium Risk, 2 = High Risk.
 
 **Confidence**  
 The probability score assigned by the model to the predicted class, indicating the model's certainty.
 
 **Prediction Summary**  
-A short explanation describing why the model produced the prediction.  
-This summary is generated from model explainability results.
+A short explanation describing why the model produced the prediction. This summary is generated from model explainability results.
 
 **Top Contributing Features**  
-The most influential features that affected the prediction.  
-These are derived using SHAP (SHapley Additive exPlanations) values.
+The most influential features that affected the prediction. These are derived using SHAP (SHapley Additive exPlanations) values.
 
 **Class Probability Breakdown**  
 Displays the probability distribution across all possible severity classes predicted by the model.
@@ -625,8 +622,7 @@ A categorized interpretation of the likely fault type to guide troubleshooting.
 The main operational indicator group influencing the prediction, such as log-related, resource-related, or event-related signals.
 
 **Top Feature Group Share**  
-The share of total top-feature influence that belongs to the dominant operational group.  
-This is an explanation share, not model certainty.
+The share of total top-feature influence that belongs to the dominant operational group. This is an explanation share, not model certainty.
 
 **Isolation Summary**  
 A brief operational interpretation describing the probable source or domain of the fault.
