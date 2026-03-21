@@ -7,11 +7,12 @@ from typing import Any, Dict, List, Tuple
 import pandas as pd
 import requests
 import streamlit as st
+import os
 
 # _BACKEND CONFIGURATION_
 
 # Base URL of the FastAPI backend used by the Streamlit frontend.
-API_URL = "http://127.0.0.1:8000"
+API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
 
 # Maximum wait time for backend requests before showing an error.
 REQUEST_TIMEOUT = 12
