@@ -732,7 +732,7 @@ if page == "Dashboard":
         ]
 
         show_df = clean_dataframe_for_streamlit(show_df)
-        st.dataframe(show_df, use_container_width=True, hide_index=True)
+        st.dataframe(show_df, use_container_width=True)
 
         # Safer risk distribution summary using grouped counts.
         st.markdown("### Risk Distribution")
@@ -1085,7 +1085,7 @@ elif page == "Incident History":
         ]
 
         display_df = clean_dataframe_for_streamlit(display_df)
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        st.dataframe(display_df, use_container_width=True)
 
         # Let user select a record and inspect its detail.
         prediction_ids = display_df["ID"].tolist()
@@ -1158,7 +1158,7 @@ elif page == "Reports":
             .reset_index()
         )
         risk_summary = clean_dataframe_for_streamlit(risk_summary)
-        st.dataframe(risk_summary, use_container_width=True, hide_index=True)
+        st.dataframe(risk_summary, use_container_width=True)
 
         # Fault category summary table.
         st.markdown("### Fault Category Summary")
@@ -1170,7 +1170,7 @@ elif page == "Reports":
                 .reset_index()
             )
             cat_summary = clean_dataframe_for_streamlit(cat_summary)
-            st.dataframe(cat_summary, use_container_width=True, hide_index=True)
+            st.dataframe(cat_summary, use_container_width=True)
 
         # Compact report KPIs for presentation/demo use.
         st.markdown("### Report Highlights")

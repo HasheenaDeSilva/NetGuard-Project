@@ -19,7 +19,7 @@ numpy
 joblib
 shap
 lightgbm
-streamlit
+streamlit==1.48.0
 plotly
 requests
 sqlalchemy
