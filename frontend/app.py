@@ -1,32 +1,36 @@
 from __future__ import annotations
 
+# Standard library imports
 import json
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Tuple
 
-import os
+# Third-party imports
 import pandas as pd
 import requests
 import streamlit as st
 
-# _BACKEND CONFIGURATION_
+# ============================================================
+# BACKEND CONFIGURATION
+# ============================================================
 
 # Base URL of the FastAPI backend used by the Streamlit frontend.
+# In deployment, this can be overridden using an environment variable.
 API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
 
 # Maximum wait time for backend requests before showing an error.
 REQUEST_TIMEOUT = 12
 
-# Explanations for each predicted risk level.
-# These are shown in the UI so users can quickly understand the result.
+# Explanations shown for each predicted risk level.
 RISK_HELP = {
     "LOW": "Low likelihood of severe service impact. Continue standard monitoring.",
     "MEDIUM": "Moderate risk. Validate signals, review recent changes, and monitor closely.",
     "HIGH": "High likelihood of major service impact. Immediate investigation is recommended.",
 }
 
-# Descriptions for the severity input selected by the user.
-# This helps explain what the historical severity context means.
+# Descriptions for each severity input option.
+# This helps users understand the historical severity context.
 SEVERITY_HELP = {
     "severity_type 1": "Lower historical severity context.",
     "severity_type 2": "Moderate historical severity context.",
@@ -35,22 +39,29 @@ SEVERITY_HELP = {
     "severity_type 5": "Very high historical severity context.",
 }
 
-# Default feature options shown in the incident analysis form.
-# These act as selectable sample features for event, resource, and log signals.
+# Default selectable event features shown in the UI.
 DEFAULT_EVENT_OPTIONS = [f"event_type_{i}" for i in [1, 5, 11, 15, 21, 35, 49, 54]]
+
+# Default selectable resource features shown in the UI.
 DEFAULT_RESOURCE_OPTIONS = [f"resource_type_{i}" for i in [2, 4, 6, 8, 10]]
+
+# Default selectable log features shown in the UI.
 DEFAULT_LOG_OPTIONS = [f"log_feature_{i}" for i in [40, 68, 82, 170, 172, 203, 225, 312]]
 
-# Main research/project description used in the sidebar.
+# Main project description shown in the sidebar.
 PROJECT_DESCRIPTION = (
     "An Explainable Machine Learning-Based Framework for Fault Prediction and "
     "Isolation in Telecommunication Networks"
 )
 
+# Improve pandas display behavior for longer text content.
+pd.set_option("display.max_colwidth", None)
 
-# _PAGE SETUP_
+# ============================================================
+# PAGE SETUP
+# ============================================================
 
-# Streamlit page configuration for title, icon, width, and sidebar state.
+# Configure the Streamlit page.
 st.set_page_config(
     page_title="NetGuard",
     page_icon="🛰️",
@@ -58,10 +69,11 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# _CUSTOM STYLING_
+# ============================================================
+# CUSTOM STYLING
+# ============================================================
 
-# Custom CSS used to create a professional dark theme layout.
-# This controls colors, spacing, cards, KPI boxes, sidebar look, and buttons.
+# Custom CSS for layout, spacing, cards, colors, and sidebar appearance.
 st.markdown(
     """
     <style>
@@ -241,15 +253,18 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# ============================================================
+# API HELPER FUNCTIONS
+# ============================================================
 
-# _API HELPERS_
-
-# These helper functions centralize communication with the backend API.
-# They return:
-#   - True + JSON data if successful
-#   - False + error message if failed
 def api_get(path: str, params: Dict[str, Any] | None = None) -> Tuple[bool, Any]:
-    """Send a GET request to the backend and return success flag plus response body."""
+    """
+    Send a GET request to the backend API.
+
+    Returns:
+        (True, json_data) if successful
+        (False, error_message) if failed
+    """
     try:
         response = requests.get(
             f"{API_URL}{path}",
@@ -264,7 +279,13 @@ def api_get(path: str, params: Dict[str, Any] | None = None) -> Tuple[bool, Any]
 
 
 def api_post(path: str, payload: Dict[str, Any]) -> Tuple[bool, Any]:
-    """Send a POST request to the backend and return success flag plus response body."""
+    """
+    Send a POST request to the backend API.
+
+    Returns:
+        (True, json_data) if successful
+        (False, error_message) if failed
+    """
     try:
         response = requests.post(
             f"{API_URL}{path}",
@@ -277,13 +298,14 @@ def api_post(path: str, payload: Dict[str, Any]) -> Tuple[bool, Any]:
     except Exception as exc:
         return False, str(exc)
 
+# ============================================================
+# GENERAL HELPER FUNCTIONS
+# ============================================================
 
-# _GENERAL HELPERS_
-
-# Utility functions used throughout the UI for formatting,
-# safe conversions, feature preparation, and table creation.
 def risk_class_name(risk_level: str) -> str:
-    """Return CSS class name used to style the risk banner."""
+    """
+    Map a risk level to a CSS class used for banner styling.
+    """
     rl = str(risk_level).upper().strip()
     if rl == "LOW":
         return "ng-low"
@@ -293,7 +315,10 @@ def risk_class_name(risk_level: str) -> str:
 
 
 def safe_float(value: Any, default: float = 0.0) -> float:
-    """Convert any value safely to float."""
+    """
+    Safely convert a value to float.
+    If conversion fails, return the default.
+    """
     try:
         return float(value)
     except Exception:
@@ -301,17 +326,28 @@ def safe_float(value: Any, default: float = 0.0) -> float:
 
 
 def format_pct(value: Any) -> str:
-    """Format numeric probability or confidence as percentage."""
+    """
+    Convert a probability/confidence value to percentage string.
+    Example: 0.889 -> 88.9%
+    """
     return f"{safe_float(value) * 100:.1f}%"
 
 
 def parse_feature_labels(items: List[str]) -> Dict[str, float]:
-    """Convert selected event/resource feature names into sparse 1.0 dictionary."""
+    """
+    Convert selected event/resource feature names into sparse dictionary format.
+    Example:
+        ["event_type_1", "event_type_5"]
+        -> {"event_type_1": 1.0, "event_type_5": 1.0}
+    """
     return {item: 1.0 for item in items}
 
 
 def parse_log_inputs(selected_logs: List[str], log_values: Dict[str, float]) -> Dict[str, float]:
-    """Convert selected log features and their strengths into sparse backend format."""
+    """
+    Convert selected log features and their entered strengths
+    into the sparse format expected by the backend.
+    """
     out: Dict[str, float] = {}
     for key in selected_logs:
         out[key] = safe_float(log_values.get(key, 1.0), 1.0)
@@ -326,7 +362,9 @@ def build_payload(
     log_types: List[str],
     log_values: Dict[str, float],
 ) -> Dict[str, Any]:
-    """Build API prediction payload from current UI input values."""
+    """
+    Build the final payload sent to the backend prediction endpoint.
+    """
     return {
         "location": f"location {location_num}",
         "severity_type": f"severity_type {severity_num}",
@@ -338,77 +376,96 @@ def build_payload(
 
 def clean_dataframe_for_streamlit(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Convert dataframe columns into Streamlit-friendly types.
-    Helps avoid Arrow/frontend issues such as LargeUtf8 in deployment.
+    Make a dataframe safer for Streamlit rendering in local and deployed apps.
+
+    Why this is needed:
+    Some deployments throw Arrow/frontend errors like:
+    'Unrecognized type: LargeUtf8'
+
+    This helper converts columns into basic Python-backed object types.
     """
     if df is None or df.empty:
         return df
 
     out = df.copy()
+
+    # Force column names to plain strings.
     out.columns = [str(col) for col in out.columns]
 
+    # Replace pandas NaN / missing values with None.
+    out = out.where(pd.notnull(out), None)
+
+    # Convert each cell to a plain Python-friendly type.
     for col in out.columns:
-        # Convert pandas string extension / mixed object columns to plain Python objects
-        # to avoid Arrow serialization issues in some Streamlit deployments.
-        if pd.api.types.is_string_dtype(out[col]) or out[col].dtype == "object":
-            out[col] = out[col].astype(str)
+        out[col] = out[col].map(
+            lambda x: x if isinstance(x, (int, float, str, bool, type(None), pd.Timestamp)) else str(x)
+        )
+        out[col] = out[col].astype("object")
 
     return out
 
 
 def dataframe_from_top_features(top_features: List[Dict[str, Any]]) -> pd.DataFrame:
-    """Convert top SHAP features into a readable table."""
+    """
+    Convert backend SHAP top-feature output into a readable table.
+    """
     rows = []
     for item in top_features or []:
         shap_val = safe_float(item.get("shap_value"))
         rows.append(
             {
                 "Feature": str(item.get("feature", "")),
-                "Influence": round(shap_val, 5),
-                "Abs Influence": abs(round(shap_val, 5)),
+                "Influence": float(round(shap_val, 5)),
+                "Abs Influence": float(abs(round(shap_val, 5))),
             }
         )
-    df = pd.DataFrame(rows)
+
+    df = pd.DataFrame(rows, columns=["Feature", "Influence", "Abs Influence"])
+
     if not df.empty:
         df = df.sort_values("Abs Influence", ascending=False).reset_index(drop=True)
+
     return clean_dataframe_for_streamlit(df)
 
 
 def dataframe_from_probabilities(probabilities: Dict[str, float]) -> pd.DataFrame:
-    """Convert class probabilities into a display table with human-readable labels."""
+    """
+    Convert backend class probabilities into a readable table.
+    """
     label_map = {"0": "LOW", "1": "MEDIUM", "2": "HIGH"}
     rows = []
-    for cls, prob in probabilities.items():
+
+    for cls, prob in (probabilities or {}).items():
         rows.append(
             {
                 "Class": f"{cls} ({label_map.get(str(cls), str(cls))})",
-                "Probability": safe_float(prob),
+                "Probability": float(safe_float(prob)),
             }
         )
-    df = pd.DataFrame(rows)
+
+    df = pd.DataFrame(rows, columns=["Class", "Probability"])
+
     if not df.empty:
         df = df.sort_values("Probability", ascending=False).reset_index(drop=True)
+
     return clean_dataframe_for_streamlit(df)
 
+# ============================================================
+# UI RENDER HELPER FUNCTIONS
+# ============================================================
 
-# _UI RENDER HELPERS_
-
-# These functions build reusable interface components
-# like page headers, KPI cards, banners, information cards, and helper sections.
 def render_page_header(page_title: str, page_note: str) -> None:
-    """Render the main page title and supporting note for the selected page."""
-    st.markdown(
-        f'<div class="ng-page-title">{page_title}</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        f'<div class="ng-page-note">{page_note}</div>',
-        unsafe_allow_html=True,
-    )
+    """
+    Render the main page title and supporting note.
+    """
+    st.markdown(f'<div class="ng-page-title">{page_title}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="ng-page-note">{page_note}</div>', unsafe_allow_html=True)
 
 
 def render_kpi(title: str, value: str, subtitle: str = "") -> None:
-    """Render a custom KPI card."""
+    """
+    Render a KPI card used throughout the dashboard and result pages.
+    """
     st.markdown(
         f"""
         <div class="ng-kpi">
@@ -422,10 +479,13 @@ def render_kpi(title: str, value: str, subtitle: str = "") -> None:
 
 
 def render_banner(risk_level: str) -> None:
-    """Render a colored banner describing the predicted risk level."""
+    """
+    Render the colored risk banner after prediction.
+    """
     rl = str(risk_level).upper().strip()
     message = RISK_HELP.get(rl, "Model output ready for analyst review.")
     css = risk_class_name(rl)
+
     st.markdown(
         f'<div class="ng-banner {css}">{rl} RISK — {message}</div>',
         unsafe_allow_html=True,
@@ -433,7 +493,9 @@ def render_banner(risk_level: str) -> None:
 
 
 def render_card(title: str, body: str) -> None:
-    """Render a reusable text content card."""
+    """
+    Render a reusable text card.
+    """
     st.markdown(
         f"""
         <div class="ng-card">
@@ -446,7 +508,9 @@ def render_card(title: str, body: str) -> None:
 
 
 def show_api_status() -> None:
-    """Check backend availability and show current API status in the sidebar."""
+    """
+    Check backend health and show online/offline status in the sidebar.
+    """
     ok, _ = api_get("/health")
     if ok:
         st.success("API Online")
@@ -455,7 +519,9 @@ def show_api_status() -> None:
 
 
 def explain_inputs_block() -> None:
-    """Expandable helper that explains inputs and outputs."""
+    """
+    Show an expandable explanation section for the input and output fields.
+    """
     with st.expander("What do these inputs and outputs mean?", expanded=False):
         st.markdown(
             """
@@ -488,63 +554,61 @@ Investigation guidance for the engineer after the prediction is produced.
             """
         )
 
+# ============================================================
+# SIDEBAR
+# ============================================================
 
-# _SIDEBAR_
-
-# Sidebar provides project identity, backend status,
-# and navigation across the main sections of the system.
 with st.sidebar:
-    # Project title shown at the top of the sidebar.
+    # Sidebar project title.
     st.markdown('<div class="ng-sidebar-title">NetGuard</div>', unsafe_allow_html=True)
 
-    # Research/project description shown below the title.
+    # Sidebar project description.
     st.markdown(
         f'<div class="ng-sidebar-desc">{PROJECT_DESCRIPTION}</div>',
         unsafe_allow_html=True,
     )
 
-    # Current backend health state.
+    # Backend status indicator.
     show_api_status()
     st.markdown("---")
 
-    # Main page navigation.
+    # Main app navigation.
     page = st.radio(
         "Navigation",
         options=["Dashboard", "Analyze Incident", "Incident History", "Reports"],
     )
 
+# ============================================================
+# SESSION STATE
+# ============================================================
 
-# _SESSION STATE_
-
-# Session state keeps important values available across reruns.
-# This allows prediction results and payloads to remain visible
-# even after Streamlit refreshes the page interaction.
+# Store latest prediction result so it remains visible after reruns.
 if "prediction_result" not in st.session_state:
     st.session_state["prediction_result"] = None
 
+# Store latest prediction ID from backend.
 if "prediction_id" not in st.session_state:
     st.session_state["prediction_id"] = None
 
+# Store latest request payload used for prediction.
 if "last_payload" not in st.session_state:
     st.session_state["last_payload"] = None
 
+# ============================================================
+# DASHBOARD PAGE
+# ============================================================
 
-# _DASHBOARD PAGE_
-
-# Displays a high-level summary of recent stored assessments
-# including counts, average confidence, and recent activity.
 if page == "Dashboard":
-    # Page title and short explanation for the dashboard.
     render_page_header(
         "Dashboard",
         "Operational overview of recent telecom fault assessments and system outputs.",
     )
 
-    # Load recent predictions from the backend.
+    # Load stored predictions from backend.
     ok, history = api_get("/predictions", params={"limit": 100})
     rows = history if ok and isinstance(history, list) else []
 
-    # Calculate quick dashboard metrics.
+    # Calculate summary values.
     total_cases = len(rows)
     high_count = sum(1 for row in rows if str(row.get("risk_level", "")).upper() == "HIGH")
     medium_count = sum(1 for row in rows if str(row.get("risk_level", "")).upper() == "MEDIUM")
@@ -567,12 +631,11 @@ if page == "Dashboard":
     st.markdown("### Recent Activity")
 
     if rows:
-        # Convert backend history to a DataFrame for easier display.
         hist_df = pd.DataFrame(rows)
         hist_df["created_at"] = pd.to_datetime(hist_df["created_at"], errors="coerce")
         hist_df["confidence_pct"] = hist_df["confidence"].apply(lambda x: f"{safe_float(x) * 100:.1f}%")
 
-        # Keep only the most important columns for the dashboard table.
+        # Table shown in dashboard recent activity.
         show_df = hist_df[
             ["id", "created_at", "location", "severity_type", "risk_level", "confidence_pct", "fault_category"]
         ].copy()
@@ -590,7 +653,7 @@ if page == "Dashboard":
         show_df = clean_dataframe_for_streamlit(show_df)
         st.dataframe(show_df, use_container_width=True)
 
-        # Create a small risk distribution chart.
+        # Risk distribution bar chart.
         risk_counts = hist_df["risk_level"].value_counts().reset_index()
         risk_counts.columns = ["Risk Level", "Count"]
 
@@ -599,30 +662,27 @@ if page == "Dashboard":
     else:
         st.info("No predictions found yet. Run an incident assessment to populate the dashboard.")
 
+# ============================================================
+# ANALYZE INCIDENT PAGE
+# ============================================================
 
-# _ANALYZE INCIDENT PAGE_
-
-# Main page where the user enters incident data,
-# runs the model, and reviews predictions + explanations.
 elif page == "Analyze Incident":
-    # Page title and short explanation for the analysis page.
     render_page_header(
         "Analyze Incident",
         "Enter incident details manually, run the model, and review severity, explanation, and likely isolation direction.",
     )
 
-    # Expandable help content for users and reviewers.
     explain_inputs_block()
 
     # Two-column layout:
-    # left = form inputs
-    # right = summary of the selected input values
+    # left side = inputs
+    # right side = summary cards
     left, right = st.columns([1.22, 1.0], gap="large")
 
     with left:
         st.subheader("Incident Inputs")
 
-        # Numeric location identifier for the telecom site.
+        # Telecom site/location input.
         location_num = st.number_input(
             "Location ID",
             min_value=1,
@@ -632,7 +692,7 @@ elif page == "Analyze Incident":
             help="Represents the telecom site or network location linked to the incident.",
         )
 
-        # Historical severity context selected by the user.
+        # Severity input.
         severity_options = [1, 2, 3, 4, 5]
         severity_num = st.selectbox(
             "Severity Type",
@@ -642,7 +702,7 @@ elif page == "Analyze Incident":
         )
         st.caption(SEVERITY_HELP.get(f"severity_type {severity_num}", ""))
 
-        # Event-related signals selected by the user.
+        # Event feature inputs.
         event_types = st.multiselect(
             "Event Signals",
             options=DEFAULT_EVENT_OPTIONS,
@@ -650,7 +710,7 @@ elif page == "Analyze Incident":
             help="Alarm or event signals triggered for this incident.",
         )
 
-        # Resource-related signals selected by the user.
+        # Resource feature inputs.
         resource_types = st.multiselect(
             "Resource Signals",
             options=DEFAULT_RESOURCE_OPTIONS,
@@ -658,7 +718,7 @@ elif page == "Analyze Incident":
             help="Related network resources or components involved in the incident.",
         )
 
-        # Log-related signals selected by the user.
+        # Log feature inputs.
         log_types = st.multiselect(
             "Log Signals",
             options=DEFAULT_LOG_OPTIONS,
@@ -666,7 +726,7 @@ elif page == "Analyze Incident":
             help="Important log patterns related to the incident.",
         )
 
-        # Numeric strength values for each selected log signal.
+        # Numeric strengths for each selected log feature.
         st.markdown("##### Log Signal Strength")
         st.caption("Set a value for each selected log signal. Higher values represent stronger signal volume or presence.")
 
@@ -683,7 +743,7 @@ elif page == "Analyze Incident":
                         step=1.0,
                     )
 
-        # Build the request payload exactly as expected by the backend API.
+        # Build request payload for backend.
         payload = build_payload(
             location_num=location_num,
             severity_num=severity_num,
@@ -693,16 +753,16 @@ elif page == "Analyze Incident":
             log_values=log_values,
         )
 
-        # Store the most recent payload so it can be exported later.
+        # Save latest payload in session state.
         st.session_state["last_payload"] = payload
 
-        # Button to trigger the model assessment.
+        # Main action button.
         run = st.button("Run NetGuard Assessment", type="primary")
 
     with right:
         st.subheader("Input Summary")
 
-        # Summary cards showing the selected incident inputs.
+        # Small summary cards showing current selected inputs.
         c1, c2 = st.columns(2)
         with c1:
             render_kpi("Selected Location", f"location {location_num}", "Telecom site identifier")
@@ -721,7 +781,7 @@ elif page == "Analyze Incident":
         with c6:
             render_kpi("Log Volume Sum", f"{sum(log_values.values()):.1f}", "Sum of selected log strengths")
 
-        # Short process overview for the user.
+        # Short system workflow card.
         st.markdown(
             """
             <div class="ng-card">
@@ -736,31 +796,30 @@ elif page == "Analyze Incident":
             unsafe_allow_html=True,
         )
 
-    # Run prediction only when the button is pressed.
+    # Run prediction when user presses the button.
     if run:
         with st.spinner("Running NetGuard assessment..."):
             ok, response = api_post("/predict", payload)
 
         if ok and isinstance(response, dict):
-            # Store the latest result in session state so it persists across reruns.
             st.session_state["prediction_result"] = response.get("result")
             st.session_state["prediction_id"] = response.get("prediction_id")
             st.success("Assessment completed successfully.")
         else:
             st.error(f"Prediction failed: {response}")
 
-    # Read the stored prediction result.
+    # Read stored result from session state.
     result = st.session_state.get("prediction_result")
     prediction_id = st.session_state.get("prediction_id")
 
-    # Show prediction output only when a result is available.
+    # Only show prediction section if a result exists.
     if result:
         st.markdown("---")
         render_banner(str(result.get("risk_level", "MEDIUM")))
 
         st.subheader("Prediction")
 
-        # Main prediction result cards.
+        # Main output KPI cards.
         p1, p2, p3, p4 = st.columns(4)
         with p1:
             render_kpi(
@@ -789,7 +848,7 @@ elif page == "Analyze Incident":
 
         st.subheader("Explanation")
 
-        # Natural-language explanation returned by the backend.
+        # Natural-language explanation returned by backend.
         st.markdown(
             f"""
             <div class="ng-card" style="border-left: 4px solid #60A5FA;">
@@ -800,34 +859,51 @@ elif page == "Analyze Incident":
             unsafe_allow_html=True,
         )
 
-        # Two-column explanation section:
-        # left = feature influence
-        # right = class probabilities
+        # Two-column section:
+        # left = top contributing features
+        # right = class probability breakdown
         exp_left, exp_right = st.columns([1.04, 1.0], gap="large")
 
         with exp_left:
             st.markdown("#### Top Contributing Features")
+
+            # Convert backend explanation output into a display table.
             top_df = dataframe_from_top_features(result.get("top_features", []))
+
             st.markdown('<div class="ng-card">', unsafe_allow_html=True)
+
+            # Use st.table instead of st.dataframe here to avoid deploy Arrow/LargeUtf8 issues.
             if not top_df.empty:
-                st.dataframe(top_df, use_container_width=True)
+                st.table(clean_dataframe_for_streamlit(top_df))
             else:
                 st.info("No top features returned by the backend.")
+
             st.markdown("</div>", unsafe_allow_html=True)
 
         with exp_right:
             st.markdown("#### Class Probability Breakdown")
+
+            # Convert backend class probabilities into table format.
             prob_df = dataframe_from_probabilities(result.get("class_probabilities", {}))
+
             st.markdown('<div class="ng-card">', unsafe_allow_html=True)
+
             if not prob_df.empty:
-                chart_df = prob_df.copy().set_index("Class")
-                st.bar_chart(chart_df, height=300)
-                st.dataframe(prob_df, use_container_width=True)
+                # Create a clean chart dataframe for the probability bar chart.
+                chart_df = prob_df.copy()
+                chart_df["Probability"] = pd.to_numeric(chart_df["Probability"], errors="coerce").fillna(0.0)
+
+                # Show probability chart.
+                st.bar_chart(chart_df.set_index("Class"), height=300)
+
+                # Use st.table to avoid deploy dataframe type issues.
+                st.table(clean_dataframe_for_streamlit(prob_df))
             else:
                 st.info("No class probabilities available.")
+
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # Fault isolation summary and recommended checks.
+        # Isolation summary and recommended checks section.
         iso_left, iso_right = st.columns(2, gap="large")
 
         with iso_left:
@@ -845,6 +921,7 @@ elif page == "Analyze Incident":
         with iso_right:
             st.markdown("#### Recommended Checks")
             checks = result.get("recommended_checks") or []
+
             if checks:
                 checks_html = "".join([f"<li>{str(check)}</li>" for check in checks])
                 st.markdown(
@@ -860,7 +937,7 @@ elif page == "Analyze Incident":
             else:
                 st.info("No recommended checks returned.")
 
-        # Build export content using both input payload and output result.
+        # Build exportable JSON payload containing both input and output.
         export_payload = {
             "prediction_id": prediction_id,
             "payload": st.session_state.get("last_payload"),
@@ -868,7 +945,7 @@ elif page == "Analyze Incident":
             "generated_at": datetime.now().isoformat(),
         }
 
-        # Downloadable JSON export for demo or reporting use.
+        # Download button for exporting latest assessment.
         st.download_button(
             "Download Assessment JSON",
             data=json.dumps(export_payload, indent=2),
@@ -876,19 +953,17 @@ elif page == "Analyze Incident":
             mime="application/json",
         )
 
+# ============================================================
+# INCIDENT HISTORY PAGE
+# ============================================================
 
-# _INCIDENT HISTORY PAGE_
-
-# Shows stored prediction records with filters
-# and allows the user to inspect details of one record.
 elif page == "Incident History":
-    # Page title and short explanation for the history page.
     render_page_header(
         "Incident History",
         "Browse past assessments, apply filters, and inspect detailed explanations stored by the backend.",
     )
 
-    # History filter controls.
+    # Filter controls.
     filter_col1, filter_col2, filter_col3 = st.columns(3)
 
     with filter_col1:
@@ -898,14 +973,14 @@ elif page == "Incident History":
     with filter_col3:
         min_conf_pct = st.slider("Minimum Confidence (%)", min_value=0, max_value=100, value=0, step=5)
 
-    # Build backend query parameters from the selected filters.
+    # Build API query parameters from filters.
     params: Dict[str, Any] = {"limit": hist_limit}
     if hist_risk != "ALL":
         params["risk_level"] = hist_risk
     if min_conf_pct > 0:
         params["min_confidence"] = min_conf_pct / 100.0
 
-    # Load filtered prediction history from the backend.
+    # Load filtered history records.
     ok, history = api_get("/predictions", params=params)
 
     if not ok:
@@ -913,12 +988,11 @@ elif page == "Incident History":
     elif not history:
         st.info("No history records match the current filters.")
     else:
-        # Convert history records into a table.
         hist_df = pd.DataFrame(history)
         hist_df["created_at"] = pd.to_datetime(hist_df["created_at"], errors="coerce")
         hist_df["confidence_pct"] = hist_df["confidence"].apply(lambda x: f"{safe_float(x) * 100:.1f}%")
 
-        # Clean display table for the user.
+        # Main incident history display table.
         display_df = hist_df[
             [
                 "id",
@@ -952,11 +1026,10 @@ elif page == "Incident History":
         display_df = clean_dataframe_for_streamlit(display_df)
         st.dataframe(display_df, use_container_width=True)
 
-        # Let the user choose one assessment to inspect in detail.
+        # Let user select a record and inspect its detail.
         prediction_ids = display_df["ID"].tolist()
         selected_id = st.selectbox("Open assessment detail", options=prediction_ids)
 
-        # Load the selected record with explanation details included.
         ok_detail, detail = api_get(
             f"/predictions/{selected_id}",
             params={"include_explanations": True},
@@ -965,7 +1038,7 @@ elif page == "Incident History":
         if ok_detail and isinstance(detail, dict):
             st.markdown("### Assessment Detail")
 
-            # Summary KPI cards for the selected record.
+            # Detail summary KPI cards.
             d1, d2, d3, d4 = st.columns(4)
             with d1:
                 render_kpi("Risk Level", str(detail.get("risk_level", "N/A")), "Stored prediction output")
@@ -976,7 +1049,7 @@ elif page == "Incident History":
             with d4:
                 render_kpi("Severity Type", str(detail.get("severity_type", "N/A")), "Historical severity input")
 
-            # Explanation cards for the selected record.
+            # Natural-language reason and isolation summary.
             render_card("Reason", str(detail.get("reason", "")))
 
             if detail.get("isolation_summary"):
@@ -986,35 +1059,32 @@ elif page == "Incident History":
             exp_df = dataframe_from_top_features(detail.get("explanations", []))
             if not exp_df.empty:
                 st.markdown("#### Stored Top Features")
-                st.dataframe(exp_df, use_container_width=True)
+                st.table(clean_dataframe_for_streamlit(exp_df))
         else:
             st.warning(f"Could not load detail for ID {selected_id}.")
 
+# ============================================================
+# REPORTS PAGE
+# ============================================================
 
-# _REPORTS PAGE_
-
-# Provides summary analytics and downloadable reporting output
-# based on stored assessments in the backend database.
 elif page == "Reports":
-    # Page title and short explanation for the reports page.
     render_page_header(
         "Reports",
         "View high-level summaries of risk levels, confidence, event activity, and fault categories.",
     )
 
-    # Load a larger prediction history window for reporting.
+    # Load larger set of stored records for reporting.
     ok, history = api_get("/predictions", params={"limit": 200})
     rows = history if ok and isinstance(history, list) else []
 
     if not rows:
         st.info("No stored assessments available for reporting.")
     else:
-        # Convert records to DataFrame for grouped summaries.
         df = pd.DataFrame(rows)
         df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce")
         df["confidence_pct"] = df["confidence"].apply(lambda x: round(safe_float(x) * 100, 1))
 
-        # Group by risk level for a high-level summary.
+        # Risk summary table.
         st.markdown("### Risk Summary")
         risk_summary = (
             df.groupby("risk_level", dropna=False)
@@ -1029,7 +1099,7 @@ elif page == "Reports":
         risk_summary = clean_dataframe_for_streamlit(risk_summary)
         st.dataframe(risk_summary, use_container_width=True)
 
-        # Group by fault category to see most common isolation patterns.
+        # Fault category summary table and chart.
         st.markdown("### Fault Category Summary")
         if "fault_category" in df.columns:
             cat_summary = (
@@ -1046,7 +1116,7 @@ elif page == "Reports":
                 chart_df["count"] = pd.to_numeric(chart_df["count"], errors="coerce").fillna(0)
                 st.bar_chart(chart_df.set_index("fault_category"), height=320)
 
-        # Export the full report dataset as CSV.
+        # CSV export for full stored history.
         csv_data = df.to_csv(index=False).encode("utf-8")
         st.download_button(
             "Download History CSV",
