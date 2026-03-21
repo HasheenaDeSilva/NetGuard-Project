@@ -789,7 +789,7 @@ elif page == "Analyze Incident":
             top_df = dataframe_from_top_features(result.get("top_features", []))
             st.markdown('<div class="ng-card">', unsafe_allow_html=True)
             if not top_df.empty:
-                st.dataframe(top_df, width="stretch", hide_index=True)
+                st.dataframe(top_df, use_container_width=True, hide_index=True)
             else:
                 st.info("No top features returned by the backend.")
             st.markdown("</div>", unsafe_allow_html=True)
