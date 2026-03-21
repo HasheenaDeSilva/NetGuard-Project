@@ -18,11 +18,10 @@ from ml_pipeline.select_features import select_features_for_model
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ARTIFACTS_DIR = PROJECT_ROOT / "artifacts"
 
+
 # Try these model locations in order
 CANDIDATE_MODEL_FILES = [
     ARTIFACTS_DIR / "final_model" / "lightgbm_final_model.joblib",
-    ARTIFACTS_DIR / "tuned_models" / "lightgbm_best_model.joblib",
-    ARTIFACTS_DIR / "lightgbm_final_model.joblib",
 ]
 
 # Map numeric model output to label
@@ -31,7 +30,6 @@ RISK_LABELS = {
     1: "MEDIUM",
     2: "HIGH",
 }
-
 
 def _resolve_model_path() -> Path:
     # Find the first model file that actually exists
