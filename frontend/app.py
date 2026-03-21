@@ -4,10 +4,10 @@ import json
 from datetime import datetime
 from typing import Any, Dict, List, Tuple
 
+import os
 import pandas as pd
 import requests
 import streamlit as st
-import os
 
 # _BACKEND CONFIGURATION_
 
@@ -336,6 +336,26 @@ def build_payload(
     }
 
 
+def clean_dataframe_for_streamlit(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Convert dataframe columns into Streamlit-friendly types.
+    Helps avoid Arrow/frontend issues such as LargeUtf8 in deployment.
+    """
+    if df is None or df.empty:
+        return df
+
+    out = df.copy()
+    out.columns = [str(col) for col in out.columns]
+
+    for col in out.columns:
+        # Convert pandas string extension / mixed object columns to plain Python objects
+        # to avoid Arrow serialization issues in some Streamlit deployments.
+        if pd.api.types.is_string_dtype(out[col]) or out[col].dtype == "object":
+            out[col] = out[col].astype(str)
+
+    return out
+
+
 def dataframe_from_top_features(top_features: List[Dict[str, Any]]) -> pd.DataFrame:
     """Convert top SHAP features into a readable table."""
     rows = []
@@ -351,7 +371,7 @@ def dataframe_from_top_features(top_features: List[Dict[str, Any]]) -> pd.DataFr
     df = pd.DataFrame(rows)
     if not df.empty:
         df = df.sort_values("Abs Influence", ascending=False).reset_index(drop=True)
-    return df
+    return clean_dataframe_for_streamlit(df)
 
 
 def dataframe_from_probabilities(probabilities: Dict[str, float]) -> pd.DataFrame:
@@ -368,7 +388,7 @@ def dataframe_from_probabilities(probabilities: Dict[str, float]) -> pd.DataFram
     df = pd.DataFrame(rows)
     if not df.empty:
         df = df.sort_values("Probability", ascending=False).reset_index(drop=True)
-    return df
+    return clean_dataframe_for_streamlit(df)
 
 
 # _UI RENDER HELPERS_
@@ -567,6 +587,7 @@ if page == "Dashboard":
             "Fault Category",
         ]
 
+        show_df = clean_dataframe_for_streamlit(show_df)
         st.dataframe(show_df, use_container_width=True)
 
         # Create a small risk distribution chart.
@@ -801,7 +822,7 @@ elif page == "Analyze Incident":
             if not prob_df.empty:
                 chart_df = prob_df.copy().set_index("Class")
                 st.bar_chart(chart_df, height=300)
-                st.dataframe(show_df, use_container_width=True)
+                st.dataframe(prob_df, use_container_width=True)
             else:
                 st.info("No class probabilities available.")
             st.markdown("</div>", unsafe_allow_html=True)
@@ -853,7 +874,6 @@ elif page == "Analyze Incident":
             data=json.dumps(export_payload, indent=2),
             file_name=f"netguard_assessment_{prediction_id or 'latest'}.json",
             mime="application/json",
-            width="content",
         )
 
 
@@ -929,7 +949,8 @@ elif page == "Incident History":
             "Log Volume Sum",
         ]
 
-        st.dataframe(top_df, use_container_width=True)
+        display_df = clean_dataframe_for_streamlit(display_df)
+        st.dataframe(display_df, use_container_width=True)
 
         # Let the user choose one assessment to inspect in detail.
         prediction_ids = display_df["ID"].tolist()
@@ -965,7 +986,7 @@ elif page == "Incident History":
             exp_df = dataframe_from_top_features(detail.get("explanations", []))
             if not exp_df.empty:
                 st.markdown("#### Stored Top Features")
-                st.dataframe(show_df, use_container_width=True)
+                st.dataframe(exp_df, use_container_width=True)
         else:
             st.warning(f"Could not load detail for ID {selected_id}.")
 
@@ -1005,7 +1026,8 @@ elif page == "Reports":
             )
             .reset_index()
         )
-        st.dataframe(show_df, use_container_width=True)
+        risk_summary = clean_dataframe_for_streamlit(risk_summary)
+        st.dataframe(risk_summary, use_container_width=True)
 
         # Group by fault category to see most common isolation patterns.
         st.markdown("### Fault Category Summary")
@@ -1016,10 +1038,13 @@ elif page == "Reports":
                 .sort_values("count", ascending=False)
                 .reset_index()
             )
-            st.dataframe(show_df, use_container_width=True)
+            cat_summary = clean_dataframe_for_streamlit(cat_summary)
+            st.dataframe(cat_summary, use_container_width=True)
 
             if not cat_summary.empty:
-                st.bar_chart(cat_summary.set_index("fault_category"), height=320)
+                chart_df = cat_summary.copy()
+                chart_df["count"] = pd.to_numeric(chart_df["count"], errors="coerce").fillna(0)
+                st.bar_chart(chart_df.set_index("fault_category"), height=320)
 
         # Export the full report dataset as CSV.
         csv_data = df.to_csv(index=False).encode("utf-8")
@@ -1028,5 +1053,4 @@ elif page == "Reports":
             data=csv_data,
             file_name="netguard_history_report.csv",
             mime="text/csv",
-            width="content",
         )
