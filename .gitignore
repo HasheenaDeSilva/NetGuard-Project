@@ -9,9 +9,13 @@ venv/
 .env
 shap-env/
 data/
-artifacts/
 ml_pipeline/artifacts/
 reports/
-*.joblib
 *.pkl
 *.db
+
+artifacts/*
+!artifacts/final_model/
+!artifacts/final_model/lightgbm_final_model.joblib
+!artifacts/final_model/selected_features.json
+!artifacts/final_model/final_model_params.json

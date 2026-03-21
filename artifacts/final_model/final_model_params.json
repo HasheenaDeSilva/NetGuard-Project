@@ -1,0 +1,14 @@
+{
+  "subsample": 0.9,
+  "reg_lambda": 0.01,
+  "reg_alpha": 0.1,
+  "num_leaves": 31,
+  "n_estimators": 700,
+  "min_child_samples": 30,
+  "max_depth": 20,
+  "learning_rate": 0.03,
+  "colsample_bytree": 0.7,
+  "class_weight": "balanced",
+  "random_state": 42,
+  "verbosity": -1
+}
