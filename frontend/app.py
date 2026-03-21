@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime
+from html import escape
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd
@@ -20,14 +21,14 @@ PROJECT_DESCRIPTION = (
     "Isolation in Telecommunication Networks"
 )
 
-# These are used in banners and KPI cards so outputs are easier to understand.
+# Friendly descriptions used in banners and KPI cards.
 RISK_HELP = {
     "LOW": "Low likelihood of severe service impact. Continue standard monitoring.",
     "MEDIUM": "Moderate risk. Validate signals, review recent changes, and monitor closely.",
     "HIGH": "High likelihood of major service impact. Immediate investigation is recommended.",
 }
 
-# Helper text for the severity input chosen by the analyst.
+# Helper text shown under the selected severity input.
 SEVERITY_HELP = {
     "severity_type 1": "Lower historical severity context.",
     "severity_type 2": "Moderate historical severity context.",
@@ -36,16 +37,16 @@ SEVERITY_HELP = {
     "severity_type 5": "Very high historical severity context.",
 }
 
-# These ranges only control the selectable IDs shown in the frontend.
-# They do not define the model itself; the backend still performs the actual prediction.
+# These ranges define which IDs can be selected in the frontend UI.
+# They do not define the model itself. The backend still performs the real prediction.
 EVENT_SIGNAL_IDS = list(range(1, 51))
 RESOURCE_SIGNAL_IDS = list(range(1, 51))
 LOG_SIGNAL_IDS = list(range(1, 101))
 
-# Prevent long strings in dataframes from being visually cut off.
+# Prevent long dataframe text from being cut off too early.
 pd.set_option("display.max_colwidth", None)
 
-# Must be called before rendering the page.
+# Streamlit page setup. This must be called before drawing the UI.
 st.set_page_config(
     page_title="NetGuard",
     page_icon="🛰️",
@@ -53,8 +54,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Inject custom CSS.
-# This controls page colors, cards, KPI boxes, sidebar appearance, and spacing.
+# Custom CSS to make the Streamlit app look more like a polished dashboard.
 st.markdown(
     """
     <style>
@@ -158,7 +158,7 @@ st.markdown(
         }
         .ng-chip {
             display: inline-block;
-            padding: 0.25rem 0.6rem;
+            padding: 0.28rem 0.65rem;
             border-radius: 999px;
             border: 1px solid rgba(96,165,250,0.25);
             background: rgba(59,130,246,0.12);
@@ -166,6 +166,21 @@ st.markdown(
             font-size: 0.8rem;
             margin-right: 0.35rem;
             margin-bottom: 0.35rem;
+        }
+        .ng-chip-log {
+            border-color: rgba(168,85,247,0.28);
+            background: rgba(168,85,247,0.12);
+            color: #EAD7FF;
+        }
+        .ng-chip-resource {
+            border-color: rgba(16,185,129,0.28);
+            background: rgba(16,185,129,0.12);
+            color: #D1FAE5;
+        }
+        .ng-chip-event {
+            border-color: rgba(245,158,11,0.28);
+            background: rgba(245,158,11,0.12);
+            color: #FDE68A;
         }
         .stButton > button, .stDownloadButton > button {
             border-radius: 12px;
@@ -185,13 +200,20 @@ st.markdown(
         div[data-testid="stProgressBar"] > div > div {
             border-radius: 999px;
         }
+        .ng-mini-note {
+            color: #94A3B8;
+            font-size: 0.86rem;
+            margin-top: -0.35rem;
+            margin-bottom: 0.8rem;
+        }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
+
 # Wrapper for backend GET requests.
-# Returning (success, data_or_error) keeps error handling simple across the whole app.
+# Returning (success, data_or_error) makes error handling simpler across the app.
 def api_get(path: str, params: Dict[str, Any] | None = None) -> Tuple[bool, Any]:
     """Send a GET request to the backend."""
     try:
@@ -204,7 +226,7 @@ def api_get(path: str, params: Dict[str, Any] | None = None) -> Tuple[bool, Any]
 
 
 # Wrapper for backend POST requests.
-# Used when sending incident data to the prediction endpoint.
+# Used when sending incident details to the prediction endpoint.
 def api_post(path: str, payload: Dict[str, Any]) -> Tuple[bool, Any]:
     """Send a POST request to the backend."""
     try:
@@ -226,8 +248,7 @@ def risk_class_name(risk_level: str) -> str:
     return "ng-medium"
 
 
-# Safe conversion helper so invalid values never crash the UI.
-# Very useful when backend data may contain None, strings, or missing values.
+# Safe numeric conversion so unexpected values do not break the UI.
 def safe_float(value: Any, default: float = 0.0) -> float:
     """Safely convert values to float."""
     try:
@@ -237,35 +258,25 @@ def safe_float(value: Any, default: float = 0.0) -> float:
 
 
 def format_pct(value: Any) -> str:
-    """Convert probability 0.889 -> 88.9%."""
+    """Convert a probability such as 0.889 into 88.9%."""
     return f"{safe_float(value) * 100:.1f}%"
 
 
-# Convert a selected feature list into sparse binary input format.
-# Example: if the user selected event_type_1 and event_type_5,
-# only those chosen features are sent with value 1.0.
+# Convert selected binary-like features into sparse format.
+# Example: ["event_type_1", "event_type_5"] -> {"event_type_1": 1.0, "event_type_5": 1.0}
 def parse_sparse_binary(feature_names: List[str]) -> Dict[str, float]:
-    """
-    Convert a feature list into sparse binary format.
-    Example: ['event_type_1', 'event_type_5'] becomes:
-    {'event_type_1': 1.0, 'event_type_5': 1.0}
-    """
+    """Convert selected feature names into sparse binary input format."""
     return {name: 1.0 for name in feature_names if str(name).strip()}
 
 
-# Log features are different from binary inputs because they carry numeric intensity values.
-# This function keeps each selected log feature linked to its entered strength.
+# Log features carry numeric intensity values instead of simple 0/1 presence.
 def parse_log_inputs(log_feature_names: List[str], log_values: Dict[str, float]) -> Dict[str, float]:
-    """
-    Convert selected log features into sparse numeric format.
-    Each selected log feature gets the entered numeric strength.
-    """
+    """Convert selected log features into sparse numeric format."""
     return {name: safe_float(log_values.get(name, 1.0), 1.0) for name in log_feature_names}
 
 
-# Build the exact JSON payload expected by the backend.
-# The frontend converts simple UI choices like event ID 3 into model-style feature names
-# such as event_type_3 before sending them to /predict.
+# Build the JSON payload expected by the backend prediction API.
+# Numeric UI IDs are converted into feature-style names before sending.
 def build_payload(
     location_num: int,
     severity_num: int,
@@ -274,13 +285,7 @@ def build_payload(
     log_ids: List[int],
     log_values: Dict[str, float],
 ) -> Dict[str, Any]:
-    """
-    Build the backend request payload.
-
-    The frontend converts selected numeric IDs into backend feature keys.
-    The backend still decides how to preprocess them and which final
-    selected features are used by the model.
-    """
+    """Build the backend request payload from current UI selections."""
     event_features = [f"event_type_{i}" for i in event_ids]
     resource_features = [f"resource_type_{i}" for i in resource_ids]
     log_features = [f"log_feature_{i}" for i in log_ids]
@@ -294,10 +299,10 @@ def build_payload(
     }
 
 
-# Streamlit tables can fail or look messy if values contain unsupported types.
-# This function normalizes columns, replaces NaN, and converts unusual objects to strings.
+# Streamlit can misbehave if dataframe values contain unsupported Python objects.
+# This helper makes everything display-safe.
 def clean_dataframe_for_streamlit(df: pd.DataFrame) -> pd.DataFrame:
-    """Make dataframe values safer for Streamlit display."""
+    """Normalize dataframe values so Streamlit can display them safely."""
     if df is None or df.empty:
         return df
 
@@ -314,39 +319,32 @@ def clean_dataframe_for_streamlit(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-# Convert SHAP-style explanation records from the backend into a compact table.
-# "Abs Influence" is used only for sorting so the strongest contributions appear first.
+# Convert explanation records from the backend into a compact dataframe.
+# Abs Influence is used only for sorting by importance.
 def dataframe_from_top_features(top_features: List[Dict[str, Any]]) -> pd.DataFrame:
-    """
-    Convert backend explanation data into a compact dataframe.
-    Only Feature and Influence are shown to keep the UI simple.
-    """
+    """Convert backend explanation data into a compact dataframe."""
     rows = []
     for item in top_features or []:
+        shap_value = round(safe_float(item.get("shap_value")), 5)
         rows.append(
             {
                 "Feature": str(item.get("feature", "")),
-                "Influence": round(safe_float(item.get("shap_value")), 5),
-                "Abs Influence": abs(round(safe_float(item.get("shap_value")), 5)),
+                "Influence": shap_value,
+                "Abs Influence": abs(shap_value),
             }
         )
 
     df = pd.DataFrame(rows, columns=["Feature", "Influence", "Abs Influence"])
 
     if not df.empty:
-        df = (
-            df.sort_values("Abs Influence", ascending=False)
-            .head(10)
-            .reset_index(drop=True)
-        )
+        df = df.sort_values("Abs Influence", ascending=False).head(10).reset_index(drop=True)
 
     return clean_dataframe_for_streamlit(df)
 
 
-# Convert raw probability output into a readable table.
-# The backend uses numeric classes, so this maps them to LOW / MEDIUM / HIGH labels.
+# Convert numeric class probabilities into a readable table.
 def dataframe_from_probabilities(probabilities: Dict[str, float]) -> pd.DataFrame:
-    """Convert class probabilities from backend into a dataframe."""
+    """Convert numeric class probabilities into a readable dataframe."""
     label_map = {"0": "LOW", "1": "MEDIUM", "2": "HIGH"}
     rows = []
 
@@ -366,6 +364,120 @@ def dataframe_from_probabilities(probabilities: Dict[str, float]) -> pd.DataFram
     return clean_dataframe_for_streamlit(df)
 
 
+# Assign a broad domain label to each feature name.
+# Context features help the model prediction, but they should not become the main user-facing isolation label.
+def detect_feature_domain(feature_name: str) -> str:
+    """Assign a broad operational domain to a feature name."""
+    name = str(feature_name).lower().strip()
+
+    if "log" in name:
+        return "log"
+    if "resource" in name:
+        return "resource"
+    if "event" in name:
+        return "event"
+    if "location" in name or "severity" in name:
+        return "context"
+    return "other"
+
+
+# Infer the main operational signal group from top SHAP features.
+# Only log/resource/event are allowed to become the user-facing dominant group.
+# The second returned value is a share of ALL top-feature influence, not model confidence.
+def infer_signal_group_from_top_features(top_features: List[Dict[str, Any]]) -> Tuple[str, float | None, Dict[str, float]]:
+    """Infer the dominant operational signal group from top SHAP features."""
+    domain_scores = {
+        "log": 0.0,
+        "resource": 0.0,
+        "event": 0.0,
+        "context": 0.0,
+        "other": 0.0,
+    }
+
+    for item in top_features or []:
+        feature = str(item.get("feature", ""))
+        shap_value = abs(safe_float(item.get("shap_value")))
+        domain = detect_feature_domain(feature)
+        domain_scores[domain] += shap_value
+
+    primary_scores = {
+        "log": domain_scores["log"],
+        "resource": domain_scores["resource"],
+        "event": domain_scores["event"],
+    }
+
+    primary_total = sum(primary_scores.values())
+    all_total = sum(domain_scores.values())
+
+    if primary_total <= 0:
+        return "Mixed indicators", None, domain_scores
+
+    dominant_domain = max(primary_scores, key=primary_scores.get)
+
+    # This is not certainty. It is the share of ALL top-feature influence
+    # explained by the dominant operational group.
+    share_of_all_top_features = primary_scores[dominant_domain] / all_total if all_total > 0 else None
+
+    label_map = {
+        "log": "Log-related indicators",
+        "resource": "Resource-related indicators",
+        "event": "Event-related indicators",
+    }
+
+    return label_map[dominant_domain], share_of_all_top_features, domain_scores
+
+
+# Extract a few features that support the dominant inferred signal group.
+# If the result is mixed, return the strongest few non-context operational features.
+def extract_supporting_features(top_features: List[Dict[str, Any]], dominant_label: str) -> List[str]:
+    """Return a few top features belonging to the dominant inferred signal group."""
+    label_to_domain = {
+        "Log-related indicators": "log",
+        "Resource-related indicators": "resource",
+        "Event-related indicators": "event",
+        "Mixed indicators": None,
+    }
+
+    wanted = label_to_domain.get(dominant_label)
+
+    if wanted is None:
+        matches = []
+        for item in top_features or []:
+            feature = str(item.get("feature", ""))
+            domain = detect_feature_domain(feature)
+            if domain in {"log", "resource", "event"}:
+                matches.append(feature)
+        return matches[:4]
+
+    matches = []
+    for item in top_features or []:
+        feature = str(item.get("feature", ""))
+        if detect_feature_domain(feature) == wanted:
+            matches.append(feature)
+
+    return matches[:4]
+
+
+# Render supporting features as small chips to make isolation evidence easier to scan.
+def render_feature_chips(feature_names: List[str]) -> None:
+    """Show supporting features as styled chips."""
+    if not feature_names:
+        st.info("No supporting feature evidence available.")
+        return
+
+    html_parts = []
+    for feature in feature_names:
+        domain = detect_feature_domain(feature)
+        css_extra = {
+            "log": "ng-chip-log",
+            "resource": "ng-chip-resource",
+            "event": "ng-chip-event",
+        }.get(domain, "")
+        html_parts.append(f'<span class="ng-chip {css_extra}">{escape(str(feature))}</span>')
+
+    st.markdown(f'<div class="ng-card">{"".join(html_parts)}</div>', unsafe_allow_html=True)
+
+
 def render_page_header(page_title: str, page_note: str) -> None:
     """Show page title and short page note."""
     st.markdown(f'<div class="ng-page-title">{page_title}</div>', unsafe_allow_html=True)
@@ -373,13 +485,13 @@ def render_page_header(page_title: str, page_note: str) -> None:
 
 
 def render_kpi(title: str, value: str, subtitle: str = "") -> None:
-    """Show a KPI card."""
+    """Render a KPI summary card."""
     st.markdown(
         f"""
         <div class="ng-kpi">
-            <div class="ng-kpi-label">{title}</div>
-            <div class="ng-kpi-value">{value}</div>
-            <div class="ng-kpi-sub">{subtitle}</div>
+            <div class="ng-kpi-label">{escape(title)}</div>
+            <div class="ng-kpi-value">{escape(value)}</div>
+            <div class="ng-kpi-sub">{escape(subtitle)}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -387,11 +499,11 @@ def render_kpi(title: str, value: str, subtitle: str = "") -> None:
 
 
 def render_card(title: str, body: str) -> None:
-    """Show a general content card."""
+    """Render a generic titled card."""
     st.markdown(
         f"""
         <div class="ng-card">
-            <div class="ng-section-title">{title}</div>
+            <div class="ng-section-title">{escape(title)}</div>
             <div class="ng-muted">{body}</div>
         </div>
         """,
@@ -399,15 +511,17 @@ def render_card(title: str, body: str) -> None:
     )
 
 
-# Shows a color-coded banner after prediction using the CSS class derived from the risk label.
+# Show a colored banner after prediction based on the risk level.
 def render_banner(risk_level: str) -> None:
     """Show colored risk banner after prediction."""
     rl = str(risk_level).upper().strip()
     css = risk_class_name(rl)
     message = RISK_HELP.get(rl, "Model output ready for analyst review.")
-    st.markdown(f'<div class="ng-banner {css}">{rl} RISK — {message}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="ng-banner {css}">{escape(rl)} RISK — {escape(message)}</div>', unsafe_allow_html=True)
 
 
+# Display top explanation features in a table.
+# use_container_width=True is kept because width="stretch" caused errors in this Streamlit setup.
 def render_feature_table(top_df: pd.DataFrame) -> None:
     """Show top contributing features in a compact table."""
     if top_df.empty:
@@ -424,7 +538,7 @@ def render_feature_table(top_df: pd.DataFrame) -> None:
     )
 
 
-# Render probabilities visually using progress bars so users can quickly compare class confidence.
+# Render class probabilities as progress bars so the user can compare model confidence easily.
 def render_probability_progress(prob_df: pd.DataFrame) -> None:
     """Show class probabilities using progress bars."""
     if prob_df.empty:
@@ -439,7 +553,7 @@ def render_probability_progress(prob_df: pd.DataFrame) -> None:
             f"""
             <div class="ng-card" style="padding: 14px 16px 10px 16px; margin-bottom: 0.8rem;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
-                    <div style="font-weight:700; color:#F8FAFC;">{label}</div>
+                    <div style="font-weight:700; color:#F8FAFC;">{escape(label)}</div>
                     <div style="color:#C7D2FE; font-weight:600;">{prob * 100:.1f}%</div>
                 </div>
             </div>
@@ -449,7 +563,7 @@ def render_probability_progress(prob_df: pd.DataFrame) -> None:
         st.progress(prob)
 
 
-# Small health check so the sidebar can immediately show whether the backend is reachable.
+# Small backend health check for the sidebar.
 def show_api_status() -> None:
     """Check backend health and show Online / Offline message."""
     ok, _ = api_get("/health")
@@ -459,21 +573,17 @@ def show_api_status() -> None:
         st.error("API Offline")
 
 
-# Helps non-technical users understand what each input and output means.
-# This is a UX explanation block, not part of the ML pipeline itself.
+# This block explains the input and output fields for non-technical users.
 def explain_inputs_block() -> None:
-    """
-    Simple explanation block for non-domain experts.
-    This avoids backend and pipeline technical wording.
-    """
+    """Explain what the model inputs and outputs mean."""
     with st.expander("What do these inputs and outputs mean?", expanded=False):
         st.markdown(
-       """
+            """
 **Location ID**  
 Identifies the telecom site or network node where the incident occurred.
 
 **Severity Type**  
-Represents the historical severity context associated with the incident.  
+Represents the historical severity context associated with the incident.
 
 **Event Signal IDs**  
 IDs representing detected event indicators related to the incident, such as alarms or event triggers generated by the network.
@@ -498,16 +608,25 @@ The numerical class predicted by the machine learning model:
 The probability score assigned by the model to the predicted class, indicating the model's certainty.
 
 **Prediction Summary**  
-A short explanation describing why the model produced the prediction. This summary is generated from model explainability results.
+A short explanation describing why the model produced the prediction.  
+This summary is generated from model explainability results.
 
 **Top Contributing Features**  
-The most influential features that affected the prediction. These are derived using SHAP (SHapley Additive exPlanations) values.
+The most influential features that affected the prediction.  
+These are derived using SHAP (SHapley Additive exPlanations) values.
 
 **Class Probability Breakdown**  
 Displays the probability distribution across all possible severity classes predicted by the model.
 
 **Fault Category**  
-A categorized interpretation of the likely fault type (e.g., Software/Log anomaly, resource issue, or event-related fault).
+A categorized interpretation of the likely fault type to guide troubleshooting.
+
+**Dominant Signal Group**  
+The main operational indicator group influencing the prediction, such as log-related, resource-related, or event-related signals.
+
+**Top Feature Group Share**  
+The share of total top-feature influence that belongs to the dominant operational group.  
+This is an explanation share, not model certainty.
 
 **Isolation Summary**  
 A brief operational interpretation describing the probable source or domain of the fault.
@@ -517,7 +636,8 @@ Suggested troubleshooting actions that engineers can perform to investigate the 
 """
         )
 
-# Sidebar is the main navigation control for the whole app.
+
+# Sidebar contains project branding, backend status, and page navigation.
 with st.sidebar:
     st.markdown(f'<div class="ng-sidebar-title">{PROJECT_TITLE}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="ng-sidebar-desc">{PROJECT_DESCRIPTION}</div>', unsafe_allow_html=True)
@@ -528,8 +648,7 @@ with st.sidebar:
     page = st.radio("Navigation", options=["Dashboard", "Analyze Incident", "Incident History", "Reports"])
 
 
-# Session state keeps results alive across reruns.
-# Without this, Streamlit would clear the current prediction every time a widget changes.
+# Session state keeps the latest prediction visible across Streamlit reruns.
 if "prediction_result" not in st.session_state:
     st.session_state["prediction_result"] = None
 if "prediction_id" not in st.session_state:
@@ -583,7 +702,7 @@ if page == "Dashboard":
 elif page == "Analyze Incident":
     render_page_header(
         "Analyze Incident",
-        "Enter incident details, run the deployed model, and review the prediction results.",
+        "Enter incident details, run the deployed model, and review the prediction, explanation, and isolation guidance.",
     )
 
     explain_inputs_block()
@@ -631,8 +750,7 @@ elif page == "Analyze Incident":
             help="Select active log indicators related to this incident.",
         )
 
-        # Each selected log feature can have its own numeric strength.
-        # This is important because log signals are not just present/absent like binary features.
+        # Log signals have numeric strength values, so the user can enter an intensity for each selected log feature.
         st.markdown("##### Log Signal Strength")
         st.caption("Set a value for each selected log signal.")
 
@@ -652,7 +770,7 @@ elif page == "Analyze Incident":
                         key=f"log_strength_{log_key}",
                     )
 
-        # Build the exact backend request object from the current UI selections.
+        # Build the backend request object from the selected inputs.
         payload = build_payload(
             location_num=location_num,
             severity_num=int(severity_num),
@@ -693,16 +811,16 @@ elif page == "Analyze Incident":
                 <div class="ng-muted">
                     1. Enter incident details<br>
                     2. Run the assessment<br>
-                    3. Review the predicted risk level<br>
-                    4. Check the explanation and recommended actions
+                    3. Review the predicted risk level and confidence<br>
+                    4. Inspect top contributing features and class probabilities<br>
+                    5. Use the isolation guidance and recommended checks for investigation
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-    # Prediction is only triggered when the user clicks the button.
-    # The backend handles model inference, explanation generation, and stored output.
+    # Prediction is triggered only when the user clicks the button.
     if run:
         with st.spinner("Running NetGuard assessment..."):
             ok, response = api_post("/predict", payload)
@@ -717,12 +835,16 @@ elif page == "Analyze Incident":
     result = st.session_state.get("prediction_result")
     prediction_id = st.session_state.get("prediction_id")
 
-    # If a result exists in session state, keep showing it even after Streamlit reruns.
+    # Keep showing the latest result after reruns.
     if result:
         st.markdown("---")
         render_banner(str(result.get("risk_level", "MEDIUM")))
 
         st.subheader("Prediction")
+
+        top_features = result.get("top_features", []) or []
+        inferred_group, inferred_group_share, _ = infer_signal_group_from_top_features(top_features)
+        supporting_features = extract_supporting_features(top_features, inferred_group)
 
         p1, p2, p3, p4 = st.columns(4)
         with p1:
@@ -747,16 +869,16 @@ elif page == "Analyze Incident":
             render_kpi(
                 "Fault Category",
                 str(result.get("fault_category") or "N/A"),
-                "Isolation-oriented interpretation"
+                "Primary fault interpretation"
             )
 
         st.subheader("Explanation")
-        render_card("Prediction Summary", str(result.get("reason", "No explanation available.")))
+        render_card("Prediction Summary", escape(str(result.get("reason", "No explanation available."))))
 
         exp_left, exp_right = st.columns([1.05, 1.0], gap="large")
         with exp_left:
             st.markdown("#### Top Contributing Features")
-            top_df = dataframe_from_top_features(result.get("top_features", []))
+            top_df = dataframe_from_top_features(top_features)
             render_feature_table(top_df)
 
         with exp_right:
@@ -764,32 +886,64 @@ elif page == "Analyze Incident":
             prob_df = dataframe_from_probabilities(result.get("class_probabilities", {}))
             render_probability_progress(prob_df)
 
+        st.subheader("Isolation Guidance")
+
+        i1, i2, i3 = st.columns(3)
+        with i1:
+            render_kpi(
+                "Dominant Signal Group",
+                inferred_group,
+                "Inferred from top operational feature influence"
+            )
+        with i2:
+            share_text = format_pct(inferred_group_share) if inferred_group_share is not None else "N/A"
+            render_kpi(
+                "Top Feature Group Share",
+                share_text,
+                "Share of total top-feature influence"
+            )
+        with i3:
+            render_kpi(
+                "Recommended Checks",
+                str(len(result.get("recommended_checks") or [])),
+                "Action items returned for investigation"
+            )
+
+        st.markdown("#### Supporting Evidence")
+        st.markdown(
+            '<div class="ng-mini-note">Features below support the isolation view shown for this assessment.</div>',
+            unsafe_allow_html=True,
+        )
+        render_feature_chips(supporting_features)
+
         iso_left, iso_right = st.columns(2, gap="large")
         with iso_left:
             render_card(
                 str(result.get("fault_category") or "Isolation Summary"),
-                str(result.get("isolation_summary") or "No isolation summary available."),
+                escape(str(result.get("isolation_summary") or "No isolation summary available.")),
             )
 
         with iso_right:
             checks = result.get("recommended_checks") or []
             if checks:
-                render_card("Recommended Checks", "<br>".join([f"• {str(check)}" for check in checks]))
+                bullet_html = "<br>".join([f"• {escape(str(check))}" for check in checks])
+                render_card("Recommended Checks", bullet_html)
             else:
                 st.info("No recommended checks returned.")
 
-        # Export the full assessment for later review, reporting, or debugging.
+        # Export both the raw backend result and the frontend-inferred isolation evidence.
+        export_payload = {
+            "prediction_id": prediction_id,
+            "payload": st.session_state.get("last_payload"),
+            "result": result,
+            "inferred_signal_group": inferred_group,
+            "inferred_top_feature_group_share": inferred_group_share,
+            "generated_at": datetime.now().isoformat(),
+        }
+
         st.download_button(
             "Download Assessment JSON",
-            data=json.dumps(
-                {
-                    "prediction_id": prediction_id,
-                    "payload": st.session_state.get("last_payload"),
-                    "result": result,
-                    "generated_at": datetime.now().isoformat(),
-                },
-                indent=2,
-            ),
+            data=json.dumps(export_payload, indent=2),
             file_name=f"netguard_assessment_{prediction_id or 'latest'}.json",
             mime="application/json",
         )
@@ -809,7 +963,7 @@ elif page == "Incident History":
     with c3:
         min_conf_pct = st.slider("Minimum Confidence (%)", 0, 100, 0, 5)
 
-    # Build optional filters dynamically before calling the backend.
+    # Build filters dynamically before calling the backend.
     params: Dict[str, Any] = {"limit": hist_limit}
     if hist_risk != "ALL":
         params["risk_level"] = hist_risk
@@ -857,10 +1011,10 @@ elif page == "Incident History":
             with d4:
                 render_kpi("Severity Type", str(detail.get("severity_type", "N/A")), "Historical severity input")
 
-            render_card("Reason", str(detail.get("reason", "")))
+            render_card("Reason", escape(str(detail.get("reason", ""))))
 
             if detail.get("isolation_summary"):
-                render_card("Isolation Summary", str(detail.get("isolation_summary")))
+                render_card("Isolation Summary", escape(str(detail.get("isolation_summary"))))
 
             exp_df = dataframe_from_top_features(detail.get("explanations", []))
             if not exp_df.empty:
@@ -888,7 +1042,7 @@ elif page == "Reports":
 
         st.markdown("### Risk Summary")
 
-        # Group stored predictions by risk level to create report aggregates.
+        # Group stored predictions by risk level for report aggregation.
         risk_summary = (
             df.groupby("risk_level", dropna=False)
             .agg(
@@ -904,7 +1058,7 @@ elif page == "Reports":
         if "fault_category" in df.columns:
             st.markdown("### Fault Category Summary")
 
-            # Summarize which fault categories appear most often in stored assessments.
+            # Summarize which fault categories appear most often.
             cat_summary = (
                 df.groupby("fault_category", dropna=False)
                 .agg(count=("id", "count"))
@@ -931,7 +1085,7 @@ elif page == "Reports":
         with h3:
             render_kpi("Most Common Fault Category", most_common_fault, "Frequent isolation pattern")
 
-        # Export all stored report data to CSV for offline analysis or inclusion in reports.
+        # Export all report rows to CSV for offline analysis.
         csv_data = df.to_csv(index=False).encode("utf-8")
         st.download_button(
             "Download History CSV",
