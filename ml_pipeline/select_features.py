@@ -15,21 +15,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # Main artifacts folder in the project
 ARTIFACTS_DIR = PROJECT_ROOT / "artifacts"
 
-# Possible files that may contain the selected feature list
-# We try these first because they are the most suitable for model inference
-CANDIDATE_SELECTED_FEATURE_FILES = [
-    ARTIFACTS_DIR / "selected_features_pivot.json",
-    ARTIFACTS_DIR / "selected_features.json",
-    ARTIFACTS_DIR / "final_model" / "selected_features_pivot.json",
-    ARTIFACTS_DIR / "final_model" / "selected_features.json",
-]
-
-# Fallback files that may contain the full feature list
-# These are used only if selected feature files are not found
-CANDIDATE_FULL_FEATURE_FILES = [
-    ARTIFACTS_DIR / "feature_names_pivot.json",
-    ARTIFACTS_DIR / "final_model" / "feature_names_pivot.json",
-]
+# Final selected feature file used for model inference
+SELECTED_FEATURE_FILE = ARTIFACTS_DIR / "final_model" / "selected_features.json"
 
 
 def _load_json_list(path: Path) -> List[str]:
@@ -49,20 +36,13 @@ def _load_json_list(path: Path) -> List[str]:
 
 
 def load_selected_features() -> List[str]:
-    # First try the selected-feature files
-    # These are preferred because they match the trained model input
-    for path in CANDIDATE_SELECTED_FEATURE_FILES:
-        if path.exists():
-            return _load_json_list(path)
+    # Load the final selected-feature file used during model training
+    if not SELECTED_FEATURE_FILE.exists():
+        raise FileNotFoundError(
+            f"Selected feature file not found: {SELECTED_FEATURE_FILE}"
+        )
 
-    # If not found, try fallback full-feature files
-    for path in CANDIDATE_FULL_FEATURE_FILES:
-        if path.exists():
-            return _load_json_list(path)
-
-    # If nothing exists, raise a clear error showing every path checked
-    tried = [str(p) for p in CANDIDATE_SELECTED_FEATURE_FILES + CANDIDATE_FULL_FEATURE_FILES]
-    raise FileNotFoundError(f"No feature list file found. Tried: {tried}")
+    return _load_json_list(SELECTED_FEATURE_FILE)
 
 
 def select_features_for_model(
