@@ -1,12 +1,18 @@
 from __future__ import annotations
 
-# Standard library imports
+# ============================================================
+# STANDARD LIBRARY IMPORTS
+# ============================================================
+
 import json
 import os
 from datetime import datetime
 from typing import Any, Dict, List, Tuple
 
-# Third-party imports
+# ============================================================
+# THIRD-PARTY IMPORTS
+# ============================================================
+
 import pandas as pd
 import requests
 import streamlit as st
@@ -30,7 +36,6 @@ RISK_HELP = {
 }
 
 # Descriptions for each severity input option.
-# This helps users understand the historical severity context.
 SEVERITY_HELP = {
     "severity_type 1": "Lower historical severity context.",
     "severity_type 2": "Moderate historical severity context.",
@@ -73,15 +78,15 @@ st.set_page_config(
 # CUSTOM STYLING
 # ============================================================
 
-# Custom CSS for layout, spacing, cards, colors, and sidebar appearance.
+# Custom CSS for layout, cards, sidebar, typography, and safe UI polish.
 st.markdown(
     """
     <style>
         .stApp {
             background:
-                radial-gradient(circle at top left, rgba(37,99,235,0.11), transparent 26%),
-                radial-gradient(circle at top right, rgba(16,185,129,0.07), transparent 22%),
-                linear-gradient(180deg, #050816 0%, #07101f 56%, #0a1429 80%);
+                radial-gradient(circle at top left, rgba(37,99,235,0.12), transparent 26%),
+                radial-gradient(circle at top right, rgba(16,185,129,0.08), transparent 24%),
+                linear-gradient(180deg, #050816 0%, #07101f 56%, #0a1429 100%);
             color: #E5E7EB;
         }
 
@@ -93,7 +98,7 @@ st.markdown(
         }
 
         .block-container {
-            padding-top: 1.1rem;
+            padding-top: 1.0rem;
             padding-bottom: 2rem;
             max-width: 1480px;
         }
@@ -106,12 +111,12 @@ st.markdown(
             font-size: 3rem;
             font-weight: 850;
             color: #F8FAFC;
-            line-height: 1.08;
-            margin-bottom: 0.35rem;
+            line-height: 1.05;
+            margin-bottom: 0.3rem;
         }
 
         .ng-sidebar-desc {
-            font-size: 1rem;
+            font-size: 0.98rem;
             line-height: 1.55;
             color: #C7D7F6;
             margin-bottom: 1rem;
@@ -119,17 +124,17 @@ st.markdown(
 
         .ng-page-title {
             font-size: 2rem;
-            font-weight: 750;
+            font-weight: 780;
             color: #F8FAFC;
-            line-height: 1.12;
-            margin-top: 2rem;
-            margin-bottom: 0.3rem;
+            line-height: 1.1;
+            margin-top: 1.4rem;
+            margin-bottom: 0.2rem;
         }
 
         .ng-page-note {
             color: #A7B0C3;
             font-size: 0.96rem;
-            margin-bottom: 1.0rem;
+            margin-bottom: 1.1rem;
         }
 
         .ng-card {
@@ -138,11 +143,19 @@ st.markdown(
             border-radius: 18px;
             padding: 18px 18px 16px 18px;
             box-shadow: 0 12px 30px rgba(0,0,0,0.18);
-            margin-bottom: 0.95rem;
+            margin-bottom: 1rem;
+        }
+
+        .ng-soft-card {
+            background: rgba(12, 21, 44, 0.78);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            border-radius: 16px;
+            padding: 14px 16px;
+            margin-bottom: 0.8rem;
         }
 
         .ng-kpi {
-            background: linear-gradient(180deg, rgba(9,17,40,0.98), rgba(10,18,40,0.86));
+            background: linear-gradient(180deg, rgba(9,17,40,0.98), rgba(10,18,40,0.88));
             border: 1px solid rgba(91, 116, 190, 0.22);
             border-radius: 18px;
             padding: 16px;
@@ -206,6 +219,34 @@ st.markdown(
             line-height: 1.6;
         }
 
+        .ng-mini-title {
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: #CBD5E1;
+            margin-bottom: 0.35rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .ng-feature-row {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+            padding: 10px 12px;
+            margin-bottom: 0.55rem;
+        }
+
+        .ng-feature-name {
+            font-weight: 650;
+            color: #F8FAFC;
+            margin-bottom: 0.2rem;
+        }
+
+        .ng-feature-meta {
+            color: #A7B0C3;
+            font-size: 0.9rem;
+        }
+
         .stButton > button {
             border-radius: 12px;
             border: 1px solid rgba(96,165,250,0.28);
@@ -221,7 +262,6 @@ st.markdown(
 
         .stSelectbox label,
         .stMultiSelect label,
-        .stTextInput label,
         .stNumberInput label,
         .stSlider label {
             font-weight: 600 !important;
@@ -242,6 +282,10 @@ st.markdown(
             font-size: 0.9rem !important;
             font-weight: 700 !important;
             color: #B8C4DD !important;
+        }
+
+        div[data-testid="stProgressBar"] > div > div {
+            border-radius: 999px;
         }
     </style>
     """,
@@ -331,9 +375,6 @@ def format_pct(value: Any) -> str:
 def parse_feature_labels(items: List[str]) -> Dict[str, float]:
     """
     Convert selected event/resource feature names into sparse dictionary format.
-    Example:
-        ["event_type_1", "event_type_5"]
-        -> {"event_type_1": 1.0, "event_type_5": 1.0}
     """
     return {item: 1.0 for item in items}
 
@@ -371,10 +412,9 @@ def build_payload(
 
 def clean_dataframe_for_streamlit(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Make a dataframe safer for Streamlit rendering in local apps
-    and for general dataframe cleaning.
+    Make a dataframe safer for Streamlit rendering.
 
-    This is still useful for regular history/report tables.
+    This is mainly used for larger regular tables like dashboard/history/reports.
     """
     if df is None or df.empty:
         return df
@@ -541,6 +581,60 @@ Investigation guidance for the engineer after the prediction is produced.
             """
         )
 
+
+def render_feature_cards(top_df: pd.DataFrame) -> None:
+    """
+    Render top contributing features as styled cards instead of a risky table/chart.
+    """
+    if top_df.empty:
+        st.info("No top features returned by the backend.")
+        return
+
+    for _, row in top_df.iterrows():
+        feature = str(row["Feature"])
+        influence = safe_float(row["Influence"])
+        abs_influence = safe_float(row["Abs Influence"])
+
+        st.markdown(
+            f"""
+            <div class="ng-feature-row">
+                <div class="ng-feature-name">{feature}</div>
+                <div class="ng-feature-meta">
+                    Influence: <b>{influence:.5f}</b> &nbsp;&nbsp;|&nbsp;&nbsp;
+                    Absolute Influence: <b>{abs_influence:.5f}</b>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def render_probability_progress(prob_df: pd.DataFrame) -> None:
+    """
+    Render class probabilities using text + progress bars.
+    This avoids Streamlit Cloud Arrow/LargeUtf8 issues caused by charts/tables.
+    """
+    if prob_df.empty:
+        st.info("No class probabilities available.")
+        return
+
+    for _, row in prob_df.iterrows():
+        label = str(row["Class"])
+        prob = min(max(safe_float(row["Probability"]), 0.0), 1.0)
+
+        st.markdown(
+            f"""
+            <div class="ng-soft-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+                    <div style="font-weight:700; color:#F8FAFC;">{label}</div>
+                    <div style="color:#C7D2FE; font-weight:600;">{prob * 100:.1f}%</div>
+                </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.progress(prob)
+        st.markdown("</div>", unsafe_allow_html=True)
+
 # ============================================================
 # SIDEBAR
 # ============================================================
@@ -638,14 +732,19 @@ if page == "Dashboard":
         ]
 
         show_df = clean_dataframe_for_streamlit(show_df)
-        st.dataframe(show_df, use_container_width=True)
+        st.dataframe(show_df, use_container_width=True, hide_index=True)
 
-        # Risk distribution bar chart.
-        risk_counts = hist_df["risk_level"].value_counts().reset_index()
-        risk_counts.columns = ["Risk Level", "Count"]
-
+        # Safer risk distribution summary using grouped counts.
         st.markdown("### Risk Distribution")
-        st.bar_chart(risk_counts.set_index("Risk Level"), height=320)
+        risk_counts = hist_df["risk_level"].value_counts().to_dict()
+
+        d1, d2, d3 = st.columns(3)
+        with d1:
+            render_kpi("Low", str(risk_counts.get("LOW", 0)), "Stored low-risk outputs")
+        with d2:
+            render_kpi("Medium", str(risk_counts.get("MEDIUM", 0)), "Stored medium-risk outputs")
+        with d3:
+            render_kpi("High", str(risk_counts.get("HIGH", 0)), "Stored high-risk outputs")
     else:
         st.info("No predictions found yet. Run an incident assessment to populate the dashboard.")
 
@@ -853,55 +952,16 @@ elif page == "Analyze Incident":
 
         with exp_left:
             st.markdown("#### Top Contributing Features")
-
-            # Convert backend explanation output into a display dataframe.
             top_df = dataframe_from_top_features(result.get("top_features", []))
-
             st.markdown('<div class="ng-card">', unsafe_allow_html=True)
-
-            # Render as markdown text instead of st.table/st.dataframe
-            # to avoid deployment Arrow LargeUtf8 frontend errors.
-            if not top_df.empty:
-                st.markdown("**Top Features**")
-                for _, row in top_df.iterrows():
-                    feature = str(row["Feature"])
-                    influence = safe_float(row["Influence"])
-                    abs_influence = safe_float(row["Abs Influence"])
-                    st.markdown(
-                        f"- **{feature}** — Influence: `{influence:.5f}`, Abs Influence: `{abs_influence:.5f}`"
-                    )
-            else:
-                st.info("No top features returned by the backend.")
-
+            render_feature_cards(top_df)
             st.markdown("</div>", unsafe_allow_html=True)
 
         with exp_right:
             st.markdown("#### Class Probability Breakdown")
-
-            # Convert backend class probabilities into display dataframe.
             prob_df = dataframe_from_probabilities(result.get("class_probabilities", {}))
-
             st.markdown('<div class="ng-card">', unsafe_allow_html=True)
-
-            if not prob_df.empty:
-                # Create numeric copy for charting.
-                chart_df = prob_df.copy()
-                chart_df["Probability"] = pd.to_numeric(
-                    chart_df["Probability"], errors="coerce"
-                ).fillna(0.0)
-
-                # Show class probability chart.
-                st.bar_chart(chart_df.set_index("Class"), height=300)
-
-                # Render probability values as markdown instead of dataframe/table.
-                st.markdown("**Probability Values**")
-                for _, row in chart_df.iterrows():
-                    label = str(row["Class"])
-                    prob = safe_float(row["Probability"])
-                    st.markdown(f"- **{label}**: {prob:.4f} ({prob * 100:.1f}%)")
-            else:
-                st.info("No class probabilities available.")
-
+            render_probability_progress(prob_df)
             st.markdown("</div>", unsafe_allow_html=True)
 
         # Isolation summary and recommended checks section.
@@ -1025,7 +1085,7 @@ elif page == "Incident History":
         ]
 
         display_df = clean_dataframe_for_streamlit(display_df)
-        st.dataframe(display_df, use_container_width=True)
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
 
         # Let user select a record and inspect its detail.
         prediction_ids = display_df["ID"].tolist()
@@ -1056,17 +1116,11 @@ elif page == "Incident History":
             if detail.get("isolation_summary"):
                 render_card("Isolation Summary", str(detail.get("isolation_summary")))
 
-            # Stored feature explanation shown safely as markdown list.
+            # Stored feature explanations rendered safely as styled rows.
             exp_df = dataframe_from_top_features(detail.get("explanations", []))
             if not exp_df.empty:
                 st.markdown("#### Stored Top Features")
-                for _, row in exp_df.iterrows():
-                    feature = str(row["Feature"])
-                    influence = safe_float(row["Influence"])
-                    abs_influence = safe_float(row["Abs Influence"])
-                    st.markdown(
-                        f"- **{feature}** — Influence: `{influence:.5f}`, Abs Influence: `{abs_influence:.5f}`"
-                    )
+                render_feature_cards(exp_df)
         else:
             st.warning(f"Could not load detail for ID {selected_id}.")
 
@@ -1104,9 +1158,9 @@ elif page == "Reports":
             .reset_index()
         )
         risk_summary = clean_dataframe_for_streamlit(risk_summary)
-        st.dataframe(risk_summary, use_container_width=True)
+        st.dataframe(risk_summary, use_container_width=True, hide_index=True)
 
-        # Fault category summary table and chart.
+        # Fault category summary table.
         st.markdown("### Fault Category Summary")
         if "fault_category" in df.columns:
             cat_summary = (
@@ -1116,12 +1170,25 @@ elif page == "Reports":
                 .reset_index()
             )
             cat_summary = clean_dataframe_for_streamlit(cat_summary)
-            st.dataframe(cat_summary, use_container_width=True)
+            st.dataframe(cat_summary, use_container_width=True, hide_index=True)
 
-            if not cat_summary.empty:
-                chart_df = cat_summary.copy()
-                chart_df["count"] = pd.to_numeric(chart_df["count"], errors="coerce").fillna(0)
-                st.bar_chart(chart_df.set_index("fault_category"), height=320)
+        # Compact report KPIs for presentation/demo use.
+        st.markdown("### Report Highlights")
+        total_records = len(df)
+        avg_conf_report = df["confidence_pct"].mean() if total_records else 0.0
+        most_common_fault = (
+            str(df["fault_category"].mode().iloc[0])
+            if "fault_category" in df.columns and not df["fault_category"].dropna().empty
+            else "N/A"
+        )
+
+        r1, r2, r3 = st.columns(3)
+        with r1:
+            render_kpi("Total Records", str(total_records), "Assessments in report window")
+        with r2:
+            render_kpi("Average Confidence", f"{avg_conf_report:.1f}%", "Across stored assessments")
+        with r3:
+            render_kpi("Most Common Fault Category", most_common_fault, "Frequent isolation pattern")
 
         # CSV export for full stored history.
         csv_data = df.to_csv(index=False).encode("utf-8")
