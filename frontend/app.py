@@ -495,7 +495,6 @@ Operational guidance returned by the backend to help troubleshooting.
             """
         )
 
-
 # Sidebar is the main navigation control for the whole app.
 with st.sidebar:
     st.markdown(f'<div class="ng-sidebar-title">{PROJECT_TITLE}</div>', unsafe_allow_html=True)
