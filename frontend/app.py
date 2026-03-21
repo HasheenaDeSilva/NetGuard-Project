@@ -567,7 +567,7 @@ if page == "Dashboard":
             "Fault Category",
         ]
 
-        st.dataframe(show_df, use_container_width=True, hide_index=True)
+        st.dataframe(show_df, use_container_width=True)
 
         # Create a small risk distribution chart.
         risk_counts = hist_df["risk_level"].value_counts().reset_index()
@@ -789,7 +789,7 @@ elif page == "Analyze Incident":
             top_df = dataframe_from_top_features(result.get("top_features", []))
             st.markdown('<div class="ng-card">', unsafe_allow_html=True)
             if not top_df.empty:
-                st.dataframe(top_df, use_container_width=True, hide_index=True)
+                st.dataframe(top_df, use_container_width=True)
             else:
                 st.info("No top features returned by the backend.")
             st.markdown("</div>", unsafe_allow_html=True)
@@ -801,7 +801,7 @@ elif page == "Analyze Incident":
             if not prob_df.empty:
                 chart_df = prob_df.copy().set_index("Class")
                 st.bar_chart(chart_df, height=300)
-                st.dataframe(show_df, use_container_width=True, hide_index=True)
+                st.dataframe(show_df, use_container_width=True)
             else:
                 st.info("No class probabilities available.")
             st.markdown("</div>", unsafe_allow_html=True)
@@ -929,7 +929,7 @@ elif page == "Incident History":
             "Log Volume Sum",
         ]
 
-        st.dataframe(top_df, use_container_width=True, hide_index=True)
+        st.dataframe(top_df, use_container_width=True)
 
         # Let the user choose one assessment to inspect in detail.
         prediction_ids = display_df["ID"].tolist()
@@ -965,7 +965,7 @@ elif page == "Incident History":
             exp_df = dataframe_from_top_features(detail.get("explanations", []))
             if not exp_df.empty:
                 st.markdown("#### Stored Top Features")
-                st.dataframe(show_df, use_container_width=True, hide_index=True)
+                st.dataframe(show_df, use_container_width=True)
         else:
             st.warning(f"Could not load detail for ID {selected_id}.")
 
@@ -1005,7 +1005,7 @@ elif page == "Reports":
             )
             .reset_index()
         )
-        st.dataframe(show_df, use_container_width=True, hide_index=True)
+        st.dataframe(show_df, use_container_width=True)
 
         # Group by fault category to see most common isolation patterns.
         st.markdown("### Fault Category Summary")
@@ -1016,7 +1016,7 @@ elif page == "Reports":
                 .sort_values("count", ascending=False)
                 .reset_index()
             )
-            st.dataframe(show_df, use_container_width=True, hide_index=True)
+            st.dataframe(show_df, use_container_width=True)
 
             if not cat_summary.empty:
                 st.bar_chart(cat_summary.set_index("fault_category"), height=320)
