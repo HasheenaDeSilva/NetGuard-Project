@@ -929,7 +929,7 @@ elif page == "Incident History":
             "Log Volume Sum",
         ]
 
-        st.dataframe(display_df, width="stretch", hide_index=True)
+        st.dataframe(top_df, use_container_width=True, hide_index=True)
 
         # Let the user choose one assessment to inspect in detail.
         prediction_ids = display_df["ID"].tolist()
