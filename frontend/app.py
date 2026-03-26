@@ -816,18 +816,18 @@ elif page == "Analyze Incident":
             unsafe_allow_html=True,
         )
 
+ 
     # Prediction is triggered only when the user clicks the button.
     if run:
-
-    # Validation: check if no operational signals are selected
+        # Validation: check if no operational signals are selected
         if len(event_ids) == 0 and len(resource_ids) == 0 and len(log_ids) == 0:
             st.warning(
                 "Warning!!! No operational signals detected (event, resource, or log signals). "
                 "Prediction may rely only on contextual features such as location and severity."
             )
 
-    with st.spinner("Running NetGuard assessment..."):
-        ok, response = api_post("/predict", payload)
+        with st.spinner("Running NetGuard assessment..."):
+            ok, response = api_post("/predict", payload)
 
         if ok and isinstance(response, dict):
             st.session_state["prediction_result"] = response.get("result")
