@@ -39,9 +39,9 @@ SEVERITY_HELP = {
 
 # These ranges define which IDs can be selected in the frontend UI.
 # They do not define the model itself. The backend still performs the real prediction.
-EVENT_SIGNAL_IDS = list(range(1, 51))
-RESOURCE_SIGNAL_IDS = list(range(1, 51))
-LOG_SIGNAL_IDS = list(range(1, 101))
+EVENT_SIGNAL_IDS = list(range(1, 55))
+RESOURCE_SIGNAL_IDS = list(range(1, 11))
+LOG_SIGNAL_IDS = list(range(1, 251))
 
 # Prevent long dataframe text from being cut off too early.
 pd.set_option("display.max_colwidth", None)
