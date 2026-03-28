@@ -242,10 +242,10 @@ def risk_class_name(risk_level: str) -> str:
     """Map risk label to CSS class for banner colors."""
     rl = str(risk_level).upper().strip()
     if rl == "LOW":
-        return "ng-low"
+        return "ng - low"
     if rl == "HIGH":
-        return "ng-high"
-    return "ng-medium"
+        return "ng - high"
+    return "ng - medium"
 
 
 # Safe numeric conversion so unexpected values do not break the UI.
